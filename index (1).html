@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffe8f2">
+<title>♡ Miu — gatinho de desktop</title>
+<style>
+  :root {
+    --pink: #ffd8e8;
+    --hot-pink: #f28ab7;
+    --ink: #4d3546;
+    --cream: #fffafc;
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+  body {
+    font-family: "Trebuchet MS", system-ui, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(ellipse at 15% 20%, #fff 0 3px, transparent 4px),
+      radial-gradient(ellipse at 80% 70%, #fff 0 2px, transparent 3px),
+      linear-gradient(135deg, #fff8fc, #ffe8f2 55%, #fce1f3);
+    background-size: 90px 90px, 120px 120px, auto;
+    cursor: default;
+  }
+  .topbar {
+    position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    border: 2px solid #fff; border-radius: 999px;
+    background: rgba(255,255,255,.76); box-shadow: 0 6px 22px #d98bb522;
+    z-index: 5; white-space: nowrap; backdrop-filter: blur(8px);
+    font-size: 13px; letter-spacing: .2px;
+  }
+  .heart { color: #ed76aa; font-size: 17px; }
+  .hint {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+    width: max-content; max-width: calc(100% - 24px); text-align: center;
+    color: #946b83; font-size: 12px; line-height: 1.5;
+    background: rgba(255,255,255,.66); border: 1px solid #fff;
+    padding: 8px 14px; border-radius: 14px; z-index: 5;
+  }
+  #stage { position: fixed; inset: 0; image-rendering: pixelated; }
+  #kitty {
+    position: absolute; width: 96px; height: 96px; image-rendering: pixelated;
+    transform-origin: center bottom; will-change: left, top, transform;
+    user-select: none; touch-action: none; cursor: grab;
+    filter: drop-shadow(0 7px 0 rgba(202, 116, 163, .12));
+  }
+  #kitty:active { cursor: grabbing; }
+  .bubble {
+    position: absolute; left: 50%; bottom: 91px; transform: translateX(-50%);
+    padding: 6px 9px; background: #fff; border: 2px solid #f8bfd8;
+    border-radius: 10px; color: #9e6381; font-size: 11px; white-space: nowrap;
+    opacity: 0; pointer-events: none; transition: opacity .18s;
+  }
+  .bubble:after {
+    content: ""; position: absolute; left: 50%; bottom: -7px; width: 10px; height: 10px;
+    background: #fff; border-right: 2px solid #f8bfd8; border-bottom: 2px solid #f8bfd8;
+    transform: translateX(-50%) rotate(45deg);
+  }
+  #kitty:hover .bubble, #kitty.show-bubble .bubble { opacity: 1; }
+  .controls {
+    position: fixed; right: 16px; top: 18px; display: flex; gap: 8px; z-index: 6;
+  }
+  button {
+    border: 2px solid white; background: rgba(255,255,255,.82); color: #98617e;
+    padding: 9px 12px; border-radius: 999px; font: inherit; font-size: 12px;
+    cursor: pointer; box-shadow: 0 4px 14px #d98bb51a;
+  }
+  button:hover { background: white; transform: translateY(-1px); }
+  @media (max-width: 620px) {
+    .topbar { top: 14px; left: 12px; transform: none; font-size: 11px; }
+    .controls { top: 60px; right: 12px; }
+    .hint { bottom: 10px; font-size: 11px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="topbar"><span class="heart">♡</span><strong>MIU'S LITTLE CORNER</strong><span>✿ pixel kitty ✿</span></div>
+  <div class="controls">
+    <button id="pauseBtn" type="button" aria-pressed="false">Ⅱ pausar</button>
+    <button id="petBtn" type="button">♡ carinho</button>
+  </div>
+  <main id="stage" aria-label="Um gatinho pixel art passeia livremente pela tela">
+    <div id="kitty" role="img" aria-label="Gatinho pixel art cor-de-rosa andando">
+      <div class="bubble" id="bubble">miau~ ♡</div>
+      <canvas id="sprite" width="32" height="32" aria-hidden="true"></canvas>
+    </div>
+  </main>
+  <div class="hint">♡ Ela passeia de boas, sem abrir janelas nem mexer em nada. Arraste para brincar · clique para carinho ♡</div>
+<script>
+(() => {
+  const kitty = document.querySelector('#kitty');
+  const canvas = document.querySelector('#sprite');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const SIZE = 32, SCALE = 3;
+  kitty.style.width = `${SIZE*SCALE}px`;
+  kitty.style.height = `${SIZE*SCALE}px`;
+  canvas.style.width = '100%'; canvas.style.height = '100%';
+  let x = Math.max(10, innerWidth * .22), y = Math.max(90, innerHeight * .55);
+  let vx = 0.65, vy = 0.34, frame = 0, paused = false, dragging = false;
+  let dragDX = 0, dragDY = 0, petUntil = 0, last = performance.now();
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) paused = true;
+
+  // Pixel-art palette: cream fur, strawberry-pink ears and tiny blush.
+  const palette = {
+    '.':'#fff8f1', 'o':'#f4c9d9', 'p':'#ef8eb7', 'P':'#d96f9c',
+    'e':'#493344', 'n':'#d66c96', 'b':'#f6a9c8', 's':'#fff'
+  };
+  const idle = [
+    "...........oo........oo.......",
+    "..........oppo......oppo......",
+    ".........oppppo....oppppo.....",
+    "........oppppppo..oppppppo....",
+    "........oppppppp..pppppppo....",
+    ".......o.......... ............",
+    "......oooooooooooooooooo.......",
+    ".....oooooooooooooooooooo......",
+    "....oooooooooooooooooooooo.....",
+    "....oooeeooooooeeooooooooo......",
+    "...ooooeeooooooeeoooooooooo.....",
+    "...oooooooooooooooooooooooo.....",
+    "...ooooobbooooonoooobboooooo.....",
+    "....ooooobboooooooobboooooo......",
+    ".....ooooooooooooooooooooo.......",
+    "......ooooooooooooooooooo........",
+    ".......oooooooooooooooo..........",
+    "........oooooooooooooo............",
+    ".........oooooooooooo.............",
+    "..........oooooooooo..............",
+    "..........oo......oo..............",
+    ".........ooo......ooo............."
+  ];
+  // Clean 32x32 drawing via pixel coordinates; each shape uses crisp integer pixels.
+  function rect(c, x, y, w, h) { ctx.fillStyle = c; ctx.fillRect(x,y,w,h); }
+  function draw() {
+    ctx.clearRect(0,0,32,32);
+    const step = Math.floor(frame/9)%2;
+    const bob = (!paused && !dragging) ? (step ? 1 : 0) : 0;
+    ctx.save(); ctx.translate(0,bob);
+    // ears
+    rect('#f4c9d9', 5,5,7,8); rect('#f4c9d9',20,5,7,8);
+    rect('#fff8f1', 7,3,4,5); rect('#fff8f1',21,3,4,5);
+    rect('#ef8eb7', 7,6,3,4); rect('#ef8eb7',22,6,3,4);
+    // fluffy head silhouette
+    rect('#fff8f1',7,8,18,2); rect('#fff8f1',5,10,22,11);
+    rect('#fff8f1',7,21,18,3); rect('#fff8f1',9,24,14,2);
+    rect('#fff8f1',4,13,2,5); rect('#fff8f1',26,13,2,5);
+    // pink ear tufts
+    rect('#f4c9d9',8,8,3,2); rect('#f4c9d9',21,8,3,2);
+    // eyes, blink every so often
+    const blink = frame % 150 > 145;
+    if (blink) { rect('#493344',9,15,4,1); rect('#493344',20,15,4,1); }
+    else { rect('#493344',10,14,3,5); rect('#493344',20,14,3,5); rect('#fff',10,14,1,1); rect('#fff',20,14,1,1); }
+    // nose and tiny mouth
+    rect('#d96f9c',15,18,2,1); rect('#493344',15,19,1,2); rect('#493344',14,20,1,1);
+    // blush
+    rect('#f6a9c8',7,18,3,2); rect('#f6a9c8',22,18,3,2);
+    // whiskers
+    rect('#d9b3c4',2,17,4,1); rect('#d9b3c4',3,19,3,1);
+    rect('#d9b3c4',26,17,4,1); rect('#d9b3c4',26,19,3,1);
+    // paws, animated little steps
+    rect('#fff8f1',8,24,6,4); rect('#fff8f1',18,24,6,4);
+    if (step && !paused && !dragging) {
+      rect('#f4c9d9',7,27,6,2); rect('#fff8f1',19,25,5,5);
+    } else {
+      rect('#f4c9d9',8,27,5,2); rect('#f4c9d9',19,27,5,2);
+    }
+    // little heart on collar
+    rect('#ef8eb7',15,23,3,2); rect('#fff',16,23,1,1);
+    ctx.restore();
+  }
+  function place() {
+    kitty.style.left = `${x}px`; kitty.style.top = `${y}px`;
+    kitty.style.transform = `scaleX(${vx < 0 ? -1 : 1})`;
+  }
+  function bounds() {
+    const w = kitty.offsetWidth || 96, h = kitty.offsetHeight || 96;
+    x = Math.max(0, Math.min(innerWidth-w, x));
+    y = Math.max(65, Math.min(innerHeight-h-35, y));
+  }
+  function tick(now) {
+    const dt = Math.min(2, (now-last)/16.67); last = now;
+    if (!paused && !dragging) {
+      x += vx*dt; y += vy*dt;
+      if (x < 0 || x > innerWidth-kitty.offsetWidth) vx *= -1;
+      if (y < 68 || y > innerHeight-kitty.offsetHeight-35) vy *= -1;
+      // Gentle, slow wandering; no clicks, popups, sound, or interference.
+      if (Math.random() < 0.008) { vx = (Math.random()*.8+.35) * (Math.random()<.5?-1:1); }
+      if (Math.random() < 0.006) { vy = (Math.random()*.45+.15) * (Math.random()<.5?-1:1); }
+      bounds(); frame++;
+    }
+    if (now < petUntil) kitty.classList.add('show-bubble');
+    else kitty.classList.remove('show-bubble');
+    draw(); place(); requestAnimationFrame(tick);
+  }
+  function pet() { petUntil = performance.now()+1300; }
+  kitty.addEventListener('click', () => { if (!dragging) pet(); });
+  document.querySelector('#petBtn').addEventListener('click', pet);
+  document.querySelector('#pauseBtn').addEventListener('click', e => {
+    paused = !paused;
+    e.currentTarget.textContent = paused ? '▶ continuar' : 'Ⅱ pausar';
+    e.currentTarget.setAttribute('aria-pressed', String(paused));
+  });
+  kitty.addEventListener('pointerdown', e => {
+    dragging = true; dragDX = e.clientX-x; dragDY = e.clientY-y;
+    kitty.setPointerCapture(e.pointerId);
+  });
+  kitty.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    x = e.clientX-dragDX; y = e.clientY-dragDY; bounds(); place();
+  });
+  kitty.addEventListener('pointerup', () => { dragging = false; });
+  kitty.addEventListener('pointercancel', () => { dragging = false; });
+  addEventListener('resize', () => { bounds(); place(); });
+  place(); requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
